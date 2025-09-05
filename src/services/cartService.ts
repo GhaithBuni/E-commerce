@@ -1,4 +1,4 @@
-import { cartmodel } from "../models/cartModel";
+import { cartmodel, ICart, ICartItem } from "../models/cartModel";
 import productModel from "../models/productModel";
 
 interface createCartUser {
@@ -23,6 +23,18 @@ export const getActiveCartUser = async ({ userId }: getActiveCartUser) => {
   }
 
   return cart;
+};
+interface ClearCart {
+  userId: string;
+}
+
+export const clearCart = async ({ userId }: ClearCart) => {
+  const cart = await getActiveCartUser({ userId });
+  cart.items = [];
+  cart.totalPrice = 0;
+  const updatedCart = await cart.save();
+
+  return { data: updatedCart, statusCode: 200 };
 };
 
 interface AddItemToCart {
@@ -100,13 +112,47 @@ export const updateItemInCart = async ({
     (p) => p.product.toString() !== productId
   );
 
-  let total = otherItems.reduce((sum, product) => {
-    sum = product.unitPrice * product.quantity;
-    return sum;
-  }, 0);
+  let total = calculateCartTotalItems({ cartItems: otherItems });
   exsistInCart.quantity = quantity;
   total += exsistInCart.unitPrice * exsistInCart.quantity;
   cart.totalPrice = total;
   const updatedCart = await cart.save();
   return { data: updatedCart, statusCode: 200 };
+};
+
+interface DeleteItemInCart {
+  userId: string;
+  productId: any;
+}
+export const deleteItemInCart = async ({
+  userId,
+  productId,
+}: DeleteItemInCart) => {
+  const cart = await getActiveCartUser({ userId });
+  const exsistInCart = cart.items.find(
+    (item) => item.product.toString() === productId
+  );
+
+  if (!exsistInCart) {
+    return { data: "Product not found in cart", statusCode: 404 };
+  }
+
+  const otherItems = cart.items.filter(
+    (p) => p.product.toString() !== productId
+  );
+
+  let total = calculateCartTotalItems({ cartItems: otherItems });
+  cart.items = otherItems;
+  cart.totalPrice = total;
+  const updatedCart = await cart.save();
+  return { data: updatedCart, statusCode: 200 };
+};
+
+const calculateCartTotalItems = ({ cartItems }: { cartItems: ICartItem[] }) => {
+  let total = cartItems.reduce((sum, product) => {
+    sum = product.unitPrice * product.quantity;
+    return sum;
+  }, 0);
+
+  return total;
 };
